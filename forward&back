@@ -1,0 +1,178 @@
+#include <iostream>
+#include <set>
+#include <vector>
+#include <cstdlib> // for rand()
+#include <ctime>   // to be able to have random numbers each time
+
+using namespace std;
+
+double evaluateFeatureSet(const set<int>& featureSet) {//returns a random accuracy value
+    return (rand() % 8000) / 100.0; 
+}
+
+void greedyBackwardElimination(int numFeatures) {
+    set<int> selectedFeatures;// Start with all features
+    for (int i = 1; i <= numFeatures ; ++i) {
+        selectedFeatures.insert(i);
+    }
+
+    cout << "\nUsing no features and “random” evaluation, I get an accuracy of "
+         << evaluateFeatureSet(selectedFeatures) << "%" << endl;
+    cout << "Beginning search.\n" << endl;
+
+    set<int> globalBestFeatureSet = selectedFeatures; // Track the global best feature set
+    double globalBestAccuracy = evaluateFeatureSet(selectedFeatures); // Track the global best accuracy
+    cout << "Using feature(s) {";
+    for (auto it = selectedFeatures.begin(); it != selectedFeatures.end(); ++it) {
+        if (it != selectedFeatures.begin()) cout << ",";
+        cout << *it;
+    }
+    cout << "} accuracy is " << globalBestAccuracy << "%" << endl;
+    cout << "Feature set {";
+            for (auto it = selectedFeatures.begin(); it != selectedFeatures.end(); ++it) {
+                if (it != selectedFeatures.begin()) cout << ",";
+                cout << *it;
+            }
+            cout << "} was best, accuracy is " << globalBestAccuracy << "%\n" << endl;
+
+    while (!selectedFeatures.empty()) {
+        int worstFeature = -1; // Tracks the feature to remove
+        double localBestAccuracy = 0.0; // Tracks the best accuracy for this iteration
+        set<int> tempBestFeatureSet; // Tracks the feature set for this iteration
+
+        for (int feature : selectedFeatures) {// Try removing each feature
+            set<int> tempFeatures = selectedFeatures;
+            tempFeatures.erase(feature);
+
+            double accuracy = evaluateFeatureSet(tempFeatures);
+            cout << "Using feature(s) {";
+            for (auto it = tempFeatures.begin(); it != tempFeatures.end(); ++it) {
+                if (it != tempFeatures.begin()) cout << ",";
+                cout << *it;
+            }
+            cout << "} accuracy is " << accuracy << "%" << endl;
+
+            if (accuracy > localBestAccuracy) { // Update the best feature to remove and accuracy for this iteration
+                localBestAccuracy = accuracy;
+                worstFeature = feature;
+                tempBestFeatureSet = tempFeatures;
+            }
+        }
+
+        if (worstFeature != -1) {// Remove the feature that improves accuracy the most (or decreases the least)
+            selectedFeatures.erase(worstFeature);
+
+            if (localBestAccuracy > globalBestAccuracy) {// Update the global best if this iteration's accuracy is better
+                globalBestAccuracy = localBestAccuracy;
+                globalBestFeatureSet = tempBestFeatureSet;
+            }
+
+            cout << "Feature set {";// Output the best feature set of this iteration
+            for (auto it = selectedFeatures.begin(); it != selectedFeatures.end(); ++it) {
+                if (it != selectedFeatures.begin()) cout << ",";
+                cout << *it;
+            }
+            cout << "} was best, accuracy is " << localBestAccuracy << "%\n" << endl;
+        } else {
+            cout << "No improvement found. Stopping search.\n" << endl;
+            break;
+        }
+    }
+
+    cout << "Finished search!!" << endl;// Output the overall best feature set and accuracy
+    cout << "The best feature subset is {";
+    for (auto it = globalBestFeatureSet.begin(); it != globalBestFeatureSet.end(); ++it) {
+        if (it != globalBestFeatureSet.begin()) cout << ",";
+        cout << *it;
+    }
+    cout << "}, which has an accuracy of " << globalBestAccuracy << "%" << endl;
+}
+
+void greedyForwardSelection(int numFeatures) {
+    cout << "\nUsing no features and “random” evaluation, I get an accuracy of "
+         << evaluateFeatureSet({}) << "%" << endl;
+    cout << "Beginning search.\n" << endl;
+
+    set<int> selectedFeatures;
+    set<int> globalBestFeatureSet; // Tracks the global best feature set
+    double globalBestAccuracy = 0.0; // Tracks the global best accuracy
+
+    for (int i = 0; i < numFeatures; ++i) {
+        int bestFeature = -1; // Tracks the best feature for this iteration
+        double localBestAccuracy = 0.0; // Tracks the best accuracy for this iteration
+
+        for (int feature = 1; feature <= numFeatures; ++feature) {// Test adding each feature not already in the selected set
+            if (selectedFeatures.find(feature) == selectedFeatures.end()) {
+                set<int> tempFeatures = selectedFeatures;// Add the feature temporarily and evaluate
+                tempFeatures.insert(feature);
+
+                double accuracy = evaluateFeatureSet(tempFeatures);
+                cout << "Using feature(s) {";
+                for (auto it = tempFeatures.begin(); it != tempFeatures.end(); ++it) {
+                    if (it != tempFeatures.begin()) cout << ",";
+                    cout << *it;
+                }
+                cout << "} accuracy is " << accuracy << "%" << endl;
+
+                if (accuracy > localBestAccuracy) {// Update the best feature and accuracy for this iteration
+                    localBestAccuracy = accuracy;
+                    bestFeature = feature;
+                }
+            }
+        }
+
+        if (bestFeature != -1) {// Add the best feature of this iteration to the selected features
+            selectedFeatures.insert(bestFeature);
+
+            if (localBestAccuracy > globalBestAccuracy) {// Update the global best if this iteration's accuracy is better
+                globalBestAccuracy = localBestAccuracy;
+                globalBestFeatureSet = selectedFeatures;
+            }
+
+            cout << "Feature set {";// Output the best feature set of this iteration
+            for (auto it = selectedFeatures.begin(); it != selectedFeatures.end(); ++it) {
+                if (it != selectedFeatures.begin()) cout << ",";
+                cout << *it;
+            }
+            cout << "} was best, accuracy is " << localBestAccuracy << "%\n" << endl;
+        } else {
+            cout << "No improvement found. Stopping search.\n" << endl;
+            break;
+        }
+    }
+
+    cout << "Finished search!!" << endl;// Output the overall best feature set and accuracy
+    cout << "The best feature subset is {";
+    for (auto it = globalBestFeatureSet.begin(); it != globalBestFeatureSet.end(); ++it) {
+        if (it != globalBestFeatureSet.begin()) cout << ",";
+        cout << *it;
+    }
+    cout << "}, which has an accuracy of " << globalBestAccuracy << "%" << endl;
+}
+
+int main() {
+    srand(time(0)); // Seed the random number generator
+
+    int numFeatures;
+    cout << "Welcome to Bryan Franco's Feature Selection Algorithm." << endl;
+    cout << "Please enter the total number of features: ";
+    cin >> numFeatures;
+    cout << "Type the number of the algorithm you want to run." << endl;
+    cout << "1. Forward Selection" << endl;
+    cout << "2. Backward Elimination" << endl;
+    cout << "3. Bryan's Special Algorithm." << endl;
+
+    int choice;
+    cout << "Enter your choice: ";
+    cin >> choice;
+
+    if (choice == 1) {
+        greedyForwardSelection(numFeatures);
+    } else if (choice == 2) {
+        greedyBackwardElimination(numFeatures);
+    } else {
+        cout << "Only Forward Selection and Backward Elimination are implemented in this example!" << endl;
+    }
+
+    return 0;
+}
