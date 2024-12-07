@@ -1,0 +1,180 @@
+#include <iostream>
+#include <vector>  
+#include <cmath>  
+#include <algorithm>
+#include <fstream> 
+#include <sstream> 
+#include <iomanip>
+#include <chrono>
+
+
+using namespace std; 
+
+
+struct Instance {
+    int label;                     // Class label of the instance
+    vector<double> features;       // Feature values of the instance
+};
+
+//function to compute Euclidean distance between two instances (based on selected features)
+double computeDistance(const Instance& a, const Instance& b, const vector<int>& selectedFeatures) {
+    double sum = 0.0;
+    // Loops through each selected feature index
+    for (int featureIndex : selectedFeatures) {
+        // Calculates the difference for the current feature
+        double diff = a.features[featureIndex] - b.features[featureIndex];
+        sum += diff * diff; // Add squared difference to sum
+    }
+    return sqrt(sum); // Returns the square root of the sum (Euclidean distance)
+}
+
+// Nearest Neighbor Classifier
+class NearestNeighborClassifier {
+private:
+    vector<Instance> trainingData; // Vector to hold training data instances
+    vector<int> selectedFeatures;    // Vector to hold indices of selected features
+
+public:
+    // Trains the classifier by storing the training data and selected features
+    void train(const vector<Instance>& data, const vector<int>& features) {
+        trainingData = data;
+        selectedFeatures = features;
+    }
+
+    // Tests a single instance and predict its class
+    int test(const Instance& testInstance) {
+        double minDistance = numeric_limits<double>::max(); // Initialize minimum distance to maximum possible value
+        int predictedLabel = -1;
+
+        for (const auto& trainInstance : trainingData) {
+            double distance = computeDistance(trainInstance, testInstance, selectedFeatures);
+            if (distance < minDistance) {
+                minDistance = distance;
+                predictedLabel = trainInstance.label; // Updates predicted label to the label of the closest training instance
+            }
+        }
+        return predictedLabel; // Return the predicted label
+    }
+};
+
+// Validator for Leave-One-Out Cross-Validation
+class Validator {
+public:
+    double validate(const vector<Instance>& data, const vector<int>& features, NearestNeighborClassifier& classifier) {
+        int correctPredictions = 0;
+
+        for (size_t i = 0; i < data.size(); ++i) {// Loop through each instance in the dataset
+            vector<Instance> trainingData = data; // Copy the entire dataset for training
+            Instance testInstance = trainingData[i]; // Select the current instance as the test instance
+            trainingData.erase(trainingData.begin() + i); // Remove the test instance from the training data
+
+            classifier.train(trainingData, features);// Train the classifier with the training data and selected features
+            int predictedLabel = classifier.test(testInstance);// Test the classifier with the test instance and get the predicted label
+
+            if (predictedLabel == testInstance.label) {// Checks if the prediction is correct
+                correctPredictions++; // Increment correct predictions counter if prediction is correct
+            }
+
+            cout << "Test Instance Label: " << testInstance.label << ", Predicted Label: " << predictedLabel << endl;
+        }
+
+        // Calculates and returns accuracy as a fraction of correct predictions to total instances
+        return static_cast<double>(correctPredictions) / data.size();
+    }
+};
+
+// Normalizes the dataset features to a 0-1 range
+void normalizeDataset(vector<Instance>& dataset) {
+    size_t numFeatures = dataset[0].features.size(); // Get the number of features from the first instance
+    vector<double> minValues(numFeatures, numeric_limits<double>::max()); // Initialize min values for each feature
+    vector<double> maxValues(numFeatures, numeric_limits<double>::lowest()); // Initialize max values for each feature
+
+    // Finds min and max values for each feature
+    for (const auto& instance : dataset) { // Loop through each instance in the dataset
+        for (size_t i = 0; i < numFeatures; ++i) { // Loop through each feature
+            minValues[i] = min(minValues[i], instance.features[i]); // Update min value for the feature
+            maxValues[i] = max(maxValues[i], instance.features[i]); // Update max value for the feature
+        }
+    }
+
+ 
+    for (auto& instance : dataset) { // Loop through each instance again and Normalize features
+        for (size_t i = 0; i < numFeatures; ++i) { // Loop through each feature
+            // Normalize the feature value to the range [0, 1]
+            if (maxValues[i] != minValues[i]) { // Avoid division by zero
+                instance.features[i] = (instance.features[i] - minValues[i]) / (maxValues[i] - minValues[i]);
+            } else {
+                instance.features[i] = 0.0;  // If all values are the same, set to 0
+            }
+        }
+    }
+}
+
+vector<Instance> loadDataset(const string& filePath) {//load the file
+    vector<Instance> dataset; // Vector to hold the loaded dataset
+    ifstream file(filePath); // Open the file for reading
+
+    if (!file.is_open()) {
+        cerr << "Error: Could not open file " << filePath << endl;
+        return dataset; 
+    }
+
+    string line;
+
+    while (getline(file, line)) {
+        istringstream stream(line); 
+        Instance instance; //instance to hold the data
+
+        stream >> instance.label; //the class label from the stream
+
+        double feature;
+
+        while (stream >> feature) {
+            instance.features.push_back(feature); // Adds feature to the instance
+        }
+
+        dataset.push_back(instance); // Adds the instance to the dataset
+    }
+
+    file.close(); 
+    return dataset;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {// Checks if the filename is provided as a command-line argument
+        cerr << "Error: Please provide the dataset file path as an argument." << endl;
+        return -1; 
+    }
+
+    string filePath = argv[1];
+    vector<Instance> dataset = loadDataset(filePath); // Load the dataset from the file
+
+    if (dataset.empty()) {
+        return -1;
+    }
+
+    normalizeDataset(dataset); // Normalize the features of the dataset
+
+    vector<int> selectedFeatures = {3, 5, 7};  // Specify the indices of the features to be used
+
+    NearestNeighborClassifier nnClassifier; // Creates an instance of the nearest neighbor classifier
+    Validator validator; // Creates an instance of the validator
+
+
+
+    // Validate classifier
+    auto startTime = chrono::high_resolution_clock::now();//start time
+    double accuracy = validator.validate(dataset, selectedFeatures, nnClassifier); // Validate the classifier and get accuracy
+    auto endTime = chrono::high_resolution_clock::now();//end time
+    chrono::duration<double> elapsedTime = endTime - startTime;//tells the time it took
+
+    cout << "Testing feature subset " << endl;// Prints each feature index
+     for (int feature : selectedFeatures) {
+        cout << feature << " ";
+    }
+    cout << endl; 
+    cout << fixed << setprecision(2);
+    cout << "Accuracy: " << accuracy * 100 << "%" << endl;
+    cout << "Total validation time: " << fixed << setprecision(3) << elapsedTime.count() << " seconds" << endl;
+    return 0;
+}
