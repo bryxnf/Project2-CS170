@@ -1,0 +1,190 @@
+#include <iostream>
+#include <set>
+#include <vector>
+#include <cstdlib> // for rand()
+#include <ctime>   // to seed random numbers
+#include "nnclassifierandValidator.h"
+
+using namespace std;
+
+vector<Instance> dataset; // Declare globally to access the dataset in feature selection algorithms
+NearestNeighborClassifier nnClassifier;
+Validator validator;
+
+
+double evaluateFeatureSet(const set<int>& featureSet) {
+    vector<int> features(featureSet.begin(), featureSet.end()); // Convert set to vector for compatibility
+    return validator.validate(dataset, features, nnClassifier) * 100; // Return accuracy percentage
+}
+
+void greedyBackwardElimination(int numFeatures) {
+    set<int> selectedFeatures;
+    for (int i = 1; i <= numFeatures; ++i) {
+        selectedFeatures.insert(i);
+    }
+
+    cout << "Running nearest neighbor with all features, using \"leave-one-out\" evaluation, I get an accuracy of "
+         << evaluateFeatureSet(selectedFeatures) << "%.\n";
+    cout << "Beginning search.\n" << endl;
+
+    set<int> globalBestFeatureSet = selectedFeatures;
+    double globalBestAccuracy = evaluateFeatureSet(selectedFeatures);
+
+    while (!selectedFeatures.empty()) {
+        int worstFeature = -1;
+        double localBestAccuracy = 0.0;
+        set<int> tempBestFeatureSet;
+
+        for (int feature : selectedFeatures) {
+            set<int> tempFeatures = selectedFeatures;
+            tempFeatures.erase(feature);
+
+            double accuracy = evaluateFeatureSet(tempFeatures);
+            cout << "Using feature(s) {";
+            for (auto it = tempFeatures.begin(); it != tempFeatures.end(); ++it) {
+                if (it != tempFeatures.begin()) cout << ",";
+                cout << *it;
+            }
+            cout << "} accuracy is " << accuracy << "%.\n";
+
+            if (accuracy > localBestAccuracy) {
+                localBestAccuracy = accuracy;
+                worstFeature = feature;
+                tempBestFeatureSet = tempFeatures;
+            }
+        }
+
+        if (worstFeature != -1) {
+            selectedFeatures.erase(worstFeature);
+            if (localBestAccuracy > globalBestAccuracy) {
+                globalBestAccuracy = localBestAccuracy;
+                globalBestFeatureSet = tempBestFeatureSet;
+            }
+            cout << "Feature set {";
+            for (auto it = selectedFeatures.begin(); it != selectedFeatures.end(); ++it) {
+                if (it != selectedFeatures.begin()) cout << ",";
+                cout << *it;
+            }
+            cout << "} was best, accuracy is " << localBestAccuracy << "%.\n" << endl;
+        } else {
+            cout << "No improvement found. Stopping search.\n" << endl;
+            break;
+        }
+    }
+
+    cout << "Finished search!!\n";
+    cout << "The best feature subset is {";
+    for (auto it = globalBestFeatureSet.begin(); it != globalBestFeatureSet.end(); ++it) {
+        if (it != globalBestFeatureSet.begin()) cout << ",";
+        cout << *it;
+    }
+    cout << "}, which has an accuracy of " << globalBestAccuracy << "%.\n";
+}
+
+void greedyForwardSelection(int numFeatures) {
+    cout << "Running nearest neighbor with no features (default rate), using \"leave-one-out\" evaluation, I get an accuracy of "
+         << evaluateFeatureSet(set<int>()) << "%.\n";
+    cout << "Beginning search.\n" << endl;
+
+    set<int> selectedFeatures;
+    set<int> globalBestFeatureSet;
+    double globalBestAccuracy = 0.0;
+
+    for (int i = 0; i < numFeatures; ++i) {
+        int bestFeature = -1;
+        double localBestAccuracy = 0.0;
+
+        for (int feature = 1; feature <= numFeatures; ++feature) {
+            if (selectedFeatures.find(feature) == selectedFeatures.end()) {
+                set<int> tempFeatures = selectedFeatures;
+                tempFeatures.insert(feature);
+
+                double accuracy = evaluateFeatureSet(tempFeatures);
+                cout << "Using feature(s) {";
+                for (auto it = tempFeatures.begin(); it != tempFeatures.end(); ++it) {
+                    if (it != tempFeatures.begin()) cout << ",";
+                    cout << *it;
+                }
+                cout << "} accuracy is " << accuracy << "%.\n";
+
+                if (accuracy > localBestAccuracy) {
+                    localBestAccuracy = accuracy;
+                    bestFeature = feature;
+                }
+            }
+        }
+
+        if (bestFeature != -1) {
+            selectedFeatures.insert(bestFeature);
+            if (localBestAccuracy > globalBestAccuracy) {
+                globalBestAccuracy = localBestAccuracy;
+                globalBestFeatureSet = selectedFeatures;
+            }
+            cout << "Feature set {";
+            for (auto it = selectedFeatures.begin(); it != selectedFeatures.end(); ++it) {
+                if (it != selectedFeatures.begin()) cout << ",";
+                cout << *it;
+            }
+            cout << "} was best, accuracy is " << localBestAccuracy << "%.\n" << endl;
+        } else {
+            cout << "No improvement found. Stopping search.\n" << endl;
+            break;
+        }
+    }
+
+    cout << "Finished search!!\n";
+    cout << "The best feature subset is {";
+    for (auto it = globalBestFeatureSet.begin(); it != globalBestFeatureSet.end(); ++it) {
+        if (it != globalBestFeatureSet.begin()) cout << ",";
+        cout << *it;
+    }
+    cout << "}, which has an accuracy of " << globalBestAccuracy << "%.\n";
+}
+
+int main(int argc, char* argv[]) {
+    srand(time(0)); // Seed the random number generator
+
+    cout << "Welcome to Bryans Feature Selection Algorithm.\n";
+    cout << "Type in the name of the file to test: ";
+    string filePath;
+    cin >> filePath;
+
+    dataset = loadDataset(filePath);
+    if (dataset.empty()) return -1;
+
+    int numFeatures = dataset[0].features.size() - 1;
+
+    cout << "This dataset has " << (dataset[0].features.size() - 1)
+         << " features (not including the class attribute), with " << dataset.size()
+         << " instances.\nPlease wait while I normalize the data... ";
+    normalizeDataset(dataset);
+    cout << "Done!\n";
+
+    cout << "Type the number of the algorithm you want to run.\n";
+    cout << "1. Forward Selection\n";
+    cout << "2. Backward Elimination\n";
+    cout << "Enter your choice: ";
+    int choice;
+    cin >> choice;
+
+
+    if (choice == 1) {
+        greedyForwardSelection(numFeatures);
+    } else if (choice == 2) {
+        greedyBackwardElimination(numFeatures);
+    } else {
+        cout << "Invalid choice. Exiting.\n";
+    }
+
+    return 0;
+}
+//Group: Bryan Franco id#862267334 
+//Small Data Set Results:
+//-Forward:Feature Subset{3,5},Acc:92%
+//-Backward:Feature Subset{3,5},Acc:92%
+// Largae Data Set Results:
+//-Forward:Feature Subset{1,27},Acc:95.5%
+//-Backward:Feature Subset{27},Acc:84.7%
+//Titanic Dataset:
+//-Forward:Feature Subset{2}Acc:78.0%
+//-Backward:Feature Subset:{2}Acc:78.0%
